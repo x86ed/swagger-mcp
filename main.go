@@ -1,9 +1,13 @@
 package main
 
 import (
-	swaggerloader "github.com/danishjsheikh/swagger-mcp/app/swagger-loader"
+	"github.com/danishjsheikh/swagger-mcp/app/swagger"
 )
 
 func main() {
-	swaggerloader.GetSwaggerDef()
+	swaggerSpec, err := swagger.LoadSwagger()
+	if err != nil {
+		panic(err)
+	}
+	swagger.ExtractSwagger(swaggerSpec)
 }
