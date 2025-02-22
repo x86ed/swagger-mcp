@@ -7,7 +7,7 @@ import (
 	"github.com/danishjsheikh/swagger-mcp/app/models"
 )
 
-func extractSchemaName(ref, schemaType string) string {
+func ExtractSchemaName(ref, schemaType string) string {
 	if ref != "" {
 		parts := strings.Split(ref, "/")
 		return parts[len(parts)-1]
@@ -28,15 +28,11 @@ func ExtractSwagger(swaggerSpec models.SwaggerSpec) {
 				}
 			}
 			fmt.Println("Path Paramters:")
-			for _, param := range details.Parameters {
-				if param.In == "path" {
-					fmt.Printf("  - %s (Type: %s, Required: %t)\n", param.Name, param.Type, param.Required)
-				}
-			}
+
 			fmt.Println("Request Body:")
 			for _, param := range details.Parameters {
 				if param.In == "body" {
-					schemaName := extractSchemaName(param.Schema.Ref, param.Type)
+					schemaName := ExtractSchemaName(param.Schema.Ref, param.Type)
 					fmt.Printf("  - %s (Schema: %s)\n", param.Name, schemaName)
 					if definition, found := swaggerSpec.Definitions[schemaName]; found {
 						for propName, prop := range definition.Properties {
@@ -50,7 +46,7 @@ func ExtractSwagger(swaggerSpec models.SwaggerSpec) {
 			fmt.Println("Response Body:")
 			for status, resp := range details.Responses {
 				if resp.Schema != nil {
-					schemaName := extractSchemaName(resp.Schema.Ref, resp.Schema.Type)
+					schemaName := ExtractSchemaName(resp.Schema.Ref, resp.Schema.Type)
 					fmt.Printf("  - Status: %s, Schema: %s\n", status, schemaName)
 					if definition, found := swaggerSpec.Definitions[schemaName]; found {
 						for propName, prop := range definition.Properties {

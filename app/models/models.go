@@ -1,5 +1,7 @@
 package models
 
+import "github.com/mark3labs/mcp-go/server"
+
 type SwaggerSpec struct {
 	Host        string                         `json:"host"`
 	BasePath    string                         `json:"basePath"`
@@ -43,3 +45,5 @@ type Definition struct {
 type Property struct {
 	Type string `json:"type"`
 }
+
+var McpServer *server.MCPServer
