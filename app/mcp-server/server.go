@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/danishjsheikh/swagger-mcp/app/models"
@@ -54,15 +55,13 @@ func LoadSwaggerServer(swaggerSpec models.SwaggerSpec) {
 	for path, methods := range swaggerSpec.Paths {
 
 		for method, details := range methods {
-			var expectedResponse []string
-			var toolOption []mcp.ToolOption
-			var reqURL string
-			var reqMethod string
+			expectedResponse := []string{}
+			toolOption := []mcp.ToolOption{}
+			reqURL := fmt.Sprintf("http://%s%s%s", swaggerSpec.Host, swaggerSpec.BasePath, path)
+			reqMethod := fmt.Sprint(method)
 			reqBody := make(map[string]string)
-			var reqPathParam []string
-			var reqHeader []string
-			reqMethod = fmt.Sprint(method)
-			reqURL = fmt.Sprint(swaggerSpec.Host + swaggerSpec.BasePath + path)
+			reqPathParam := []string{}
+			reqHeader := []string{}
 
 			for _, param := range details.Parameters {
 				if param.In == "header" {
@@ -105,7 +104,7 @@ func LoadSwaggerServer(swaggerSpec models.SwaggerSpec) {
 					if definition, found := swaggerSpec.Definitions[schemaName]; found {
 						for propName, prop := range definition.Properties {
 							toolOption = append(toolOption, mcp.WithString(
-								fmt.Sprintf("%s", propName),
+								fmt.Sprint(propName),
 								mcp.Description(fmt.Sprintf("The data for %s, it should be in format of %s", propName, prop.Type)),
 								mcp.Required(),
 							))
@@ -121,14 +120,22 @@ func LoadSwaggerServer(swaggerSpec models.SwaggerSpec) {
 						defData, _ := json.Marshal(definition)
 						expectedResponse = append(expectedResponse, fmt.Sprintf(`{status_code: %s, response_body:%s}`, status, string(defData)))
 					}
+				} else if resp.Type != "" {
+					expectedResponse = append(expectedResponse, fmt.Sprintf(`{status_code: %s, response_body:%s}`, status, string(resp.Type)))
 				}
 			}
 
-			toolOption = append(toolOption, mcp.WithDescription(fmt.Sprintf(`Only use this tool when you dont have any information about  %s or %s, or need you perfrom the opertation of %s or %s, Use this tool only when no other tool can perfrom the oprtation of %s or %s,  You will get response as one of %s, the response is only for refernce`,
-				details.Summary, details.Description, details.Summary, details.Description, details.Summary, details.Description, strings.Join(expectedResponse, ", "))))
+			toolOption = append(toolOption, mcp.WithDescription(fmt.Sprintf(`Use this tool *only* when need to performe the operation of %s or %s. Do *not* use this tool if any other tool can perform the operation of %s or %s, Dont rely on stored history as data can be changed externally too,
+
+            Your response must strictly be one of: %s. If an error occurs, state the error clearly without modifying or guessing the response. Do *not* hallucinate, generate random data, or make assumptions beyond the error message or response received.
+            
+            Always respond based *only* on the received error or expected response. You are a precise and reliable assistant.`,
+				details.Summary, details.Description,
+				details.Summary, details.Description,
+				strings.Join(expectedResponse, ", "))))
 
 			models.McpServer.AddTool(mcp.NewTool(
-				fmt.Sprintf("%s_%s", method, path),
+				fmt.Sprintf("%s_%s", method, strings.ReplaceAll(strings.ReplaceAll(path, "}", ""), "{", "")),
 				toolOption...,
 			), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 				for _, paramName := range reqPathParam {
@@ -141,62 +148,61 @@ func LoadSwaggerServer(swaggerSpec models.SwaggerSpec) {
 
 				reqBodyData := make(map[string]interface{})
 				for paramName, paramType := range reqBody {
-					param, exists := request.Params.Arguments[paramName]
+					paramStr, exists := request.Params.Arguments[paramName].(string)
 					if !exists {
 						return mcp.NewToolResultError(fmt.Sprintf("Missing Body Parameter: %s", paramName)), nil
 					}
 
 					switch paramType {
 					case "string":
-						if value, ok := param.(string); ok {
-							reqBodyData[paramName] = value
-						} else {
-							return mcp.NewToolResultError(fmt.Sprintf("Invalid type for parameter %s, expected string", paramName)), nil
-						}
-					case "int":
-						switch value := param.(type) {
-						case int:
-							reqBodyData[paramName] = value
-						case float64:
-							reqBodyData[paramName] = int(value)
-						default:
+						reqBodyData[paramName] = paramStr
+
+					case "int", "integer":
+						intValue, err := strconv.Atoi(paramStr)
+						if err != nil {
 							return mcp.NewToolResultError(fmt.Sprintf("Invalid type for parameter %s, expected int", paramName)), nil
 						}
+						reqBodyData[paramName] = intValue
+
 					case "float":
-						if value, ok := param.(float64); ok {
-							reqBodyData[paramName] = value
-						} else {
+						floatValue, err := strconv.ParseFloat(paramStr, 64)
+						if err != nil {
 							return mcp.NewToolResultError(fmt.Sprintf("Invalid type for parameter %s, expected float", paramName)), nil
 						}
-					case "bool":
-						if value, ok := param.(bool); ok {
-							reqBodyData[paramName] = value
-						} else {
+						reqBodyData[paramName] = floatValue
+
+					case "bool", "boolean":
+						boolValue, err := strconv.ParseBool(paramStr)
+						if err != nil {
 							return mcp.NewToolResultError(fmt.Sprintf("Invalid type for parameter %s, expected bool", paramName)), nil
 						}
+						reqBodyData[paramName] = boolValue
+
 					case "array":
-						if value, ok := param.([]interface{}); ok {
-							reqBodyData[paramName] = value
-						} else {
+						var arrayValue []interface{}
+						if err := json.Unmarshal([]byte(paramStr), &arrayValue); err != nil {
 							return mcp.NewToolResultError(fmt.Sprintf("Invalid type for parameter %s, expected array", paramName)), nil
 						}
+						reqBodyData[paramName] = arrayValue
+
 					case "object":
-						if value, ok := param.(map[string]interface{}); ok {
-							reqBodyData[paramName] = value
-						} else {
+						var objectValue map[string]interface{}
+						if err := json.Unmarshal([]byte(paramStr), &objectValue); err != nil {
 							return mcp.NewToolResultError(fmt.Sprintf("Invalid type for parameter %s, expected object", paramName)), nil
 						}
+						reqBodyData[paramName] = objectValue
+
 					default:
 						return mcp.NewToolResultError(fmt.Sprintf("Unsupported parameter type: %s for %s", paramType, paramName)), nil
 					}
-				}
 
+				}
 				reqBodyDataBytes, err := json.Marshal(reqBodyData)
 				if err != nil {
 					return mcp.NewToolResultError(fmt.Sprintf("Failed to marshal request body: %v", err)), nil
 				}
 
-				req, err := http.NewRequest(reqMethod, reqURL, bytes.NewBuffer(reqBodyDataBytes))
+				req, err := http.NewRequest(strings.ToUpper(reqMethod), reqURL, bytes.NewBuffer(reqBodyDataBytes))
 				if err != nil {
 					return mcp.NewToolResultError(fmt.Sprintf("Failed to create HTTP request: %v", err)), nil
 				}

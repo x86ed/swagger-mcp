@@ -30,6 +30,7 @@ type Parameter struct {
 type Response struct {
 	Description string     `json:"description"`
 	Schema      *SchemaRef `json:"schema,omitempty"`
+	Type        string     `json:"type,omitempty"`
 }
 
 type SchemaRef struct {
