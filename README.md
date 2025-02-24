@@ -12,7 +12,7 @@ To use `swagger-mcp`, ensure you have the following dependencies:
 Follow these steps to install and run `swagger-mcp`:
 
 ```sh
-go install github.com/danishjsheikh/swagger-mcpo@latest
+go install github.com/danishjsheikh/swagger-mcp@latest
 swagger-mcp
 ```
 
