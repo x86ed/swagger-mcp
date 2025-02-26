@@ -49,4 +49,4 @@ To integrate with `mcphost`, include the following configuration in `.mcp.json`:
     ```
 
 ## Flow Diagram
-![Flow Diagram](https://github.com/danishjsheikh/swagger-mcp/swagger_mcp_flow_diagram.png?raw=true)
+![Flow Diagram](https://raw.githubusercontent.com/danishjsheikh/swagger-mcp/refs/heads/main/swagger_mcp_flow_diagram.png)
