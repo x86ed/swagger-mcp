@@ -125,112 +125,110 @@ func LoadSwaggerServer(swaggerSpec models.SwaggerSpec) {
 				}
 			}
 
-			toolOption = append(toolOption, mcp.WithDescription(fmt.Sprintf(`Use this tool *only* when need to performe the operation of %s or %s. Do *not* use this tool if any other tool can perform the operation of %s or %s, Dont rely on stored history as data can be changed externally too,
-
-            Your response must strictly be one of: %s. If an error occurs, state the error clearly without modifying or guessing the response. Do *not* hallucinate, generate random data, or make assumptions beyond the error message or response received.
-            
-            Always respond based *only* on the received error or expected response. You are a precise and reliable assistant.`,
-				details.Summary, details.Description,
-				details.Summary, details.Description,
-				strings.Join(expectedResponse, ", "))))
+			toolOption = append(toolOption, mcp.WithDescription(fmt.Sprintf(`Use this tool only when the request exactly matches %s or %s. If you dont have any of the required parameters then always ask user for it, *Dont fill any paramter on your own or keep it empty*. If there is [Error], only state that error in your reponse and stop the reponse there itself. *Do not ever maintain records in your memory for eg list of users or orders*`,
+				details.Summary, details.Description)))
 
 			models.McpServer.AddTool(mcp.NewTool(
 				fmt.Sprintf("%s_%s", method, strings.ReplaceAll(strings.ReplaceAll(path, "}", ""), "{", "")),
 				toolOption...,
-			), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-				for _, paramName := range reqPathParam {
-					param, ok := request.Params.Arguments[paramName].(string)
-					if !ok {
-						return mcp.NewToolResultError(fmt.Sprintf("Missing or invalid Path Parameter: %s", paramName)), nil
-					}
-					reqURL = strings.Replace(reqURL, fmt.Sprintf("{%s}", paramName), param, 1)
-				}
+			), CreateMCPToolHandler(reqPathParam, reqURL, reqBody, reqMethod, reqHeader))
+		}
+	}
+}
 
-				reqBodyData := make(map[string]interface{})
-				for paramName, paramType := range reqBody {
-					paramStr, exists := request.Params.Arguments[paramName].(string)
-					if !exists {
-						return mcp.NewToolResultError(fmt.Sprintf("Missing Body Parameter: %s", paramName)), nil
-					}
-
-					switch paramType {
-					case "string":
-						reqBodyData[paramName] = paramStr
-
-					case "int", "integer":
-						intValue, err := strconv.Atoi(paramStr)
-						if err != nil {
-							return mcp.NewToolResultError(fmt.Sprintf("Invalid type for parameter %s, expected int", paramName)), nil
-						}
-						reqBodyData[paramName] = intValue
-
-					case "float":
-						floatValue, err := strconv.ParseFloat(paramStr, 64)
-						if err != nil {
-							return mcp.NewToolResultError(fmt.Sprintf("Invalid type for parameter %s, expected float", paramName)), nil
-						}
-						reqBodyData[paramName] = floatValue
-
-					case "bool", "boolean":
-						boolValue, err := strconv.ParseBool(paramStr)
-						if err != nil {
-							return mcp.NewToolResultError(fmt.Sprintf("Invalid type for parameter %s, expected bool", paramName)), nil
-						}
-						reqBodyData[paramName] = boolValue
-
-					case "array":
-						var arrayValue []interface{}
-						if err := json.Unmarshal([]byte(paramStr), &arrayValue); err != nil {
-							return mcp.NewToolResultError(fmt.Sprintf("Invalid type for parameter %s, expected array", paramName)), nil
-						}
-						reqBodyData[paramName] = arrayValue
-
-					case "object":
-						var objectValue map[string]interface{}
-						if err := json.Unmarshal([]byte(paramStr), &objectValue); err != nil {
-							return mcp.NewToolResultError(fmt.Sprintf("Invalid type for parameter %s, expected object", paramName)), nil
-						}
-						reqBodyData[paramName] = objectValue
-
-					default:
-						return mcp.NewToolResultError(fmt.Sprintf("Unsupported parameter type: %s for %s", paramType, paramName)), nil
-					}
-
-				}
-				reqBodyDataBytes, err := json.Marshal(reqBodyData)
-				if err != nil {
-					return mcp.NewToolResultError(fmt.Sprintf("Failed to marshal request body: %v", err)), nil
-				}
-
-				req, err := http.NewRequest(strings.ToUpper(reqMethod), reqURL, bytes.NewBuffer(reqBodyDataBytes))
-				if err != nil {
-					return mcp.NewToolResultError(fmt.Sprintf("Failed to create HTTP request: %v", err)), nil
-				}
-
-				for _, headerName := range reqHeader {
-					headerValue, ok := request.Params.Arguments[headerName].(string)
-					if !ok {
-						return mcp.NewToolResultError(fmt.Sprintf("Missing or invalid Header: %s", headerName)), nil
-					}
-					req.Header.Add(headerName, headerValue)
-				}
-
-				client := &http.Client{}
-				resp, err := client.Do(req)
-				if err != nil {
-					return mcp.NewToolResultError(fmt.Sprintf("Failed to make HTTP request: %v", err)), nil
-				}
-
-				defer resp.Body.Close()
-
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return mcp.NewToolResultError(fmt.Sprintf("Failed to read HTTP Response: %v", err)), nil
-				}
-				fmt.Println(string(body))
-				return mcp.NewToolResultText(string(body)), nil
-			})
+func CreateMCPToolHandler(reqPathParam []string, reqURL string, reqBody map[string]string, reqMethod string, reqHeader []string) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		currentReqURL := reqURL
+		for _, paramName := range reqPathParam {
+			param, ok := request.Params.Arguments[paramName].(string)
+			if !ok {
+				return mcp.NewToolResultError(fmt.Sprintf("[Error] missing or invalid Path Parameter: %s", paramName)), nil
+			}
+			currentReqURL = strings.Replace(currentReqURL, fmt.Sprintf("{%s}", paramName), param, 1)
 		}
 
+		reqBodyData := make(map[string]interface{})
+		for paramName, paramType := range reqBody {
+			paramStr, exists := request.Params.Arguments[paramName].(string)
+			if !exists {
+				return mcp.NewToolResultError(fmt.Sprintf("[Error] missing Body Parameter: %s", paramName)), nil
+			}
+
+			switch paramType {
+			case "string":
+				reqBodyData[paramName] = paramStr
+
+			case "int", "integer":
+				intValue, err := strconv.Atoi(paramStr)
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("[Error] invalid type for parameter %s, expected int", paramName)), nil
+				}
+				reqBodyData[paramName] = intValue
+
+			case "float":
+				floatValue, err := strconv.ParseFloat(paramStr, 64)
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("[Error] invalid type for parameter %s, expected float", paramName)), nil
+				}
+				reqBodyData[paramName] = floatValue
+
+			case "bool", "boolean":
+				boolValue, err := strconv.ParseBool(paramStr)
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("[Error] invalid type for parameter %s, expected bool", paramName)), nil
+				}
+				reqBodyData[paramName] = boolValue
+
+			case "array":
+				var arrayValue []interface{}
+				if err := json.Unmarshal([]byte(paramStr), &arrayValue); err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("[Error] invalid type for parameter %s, expected array", paramName)), nil
+				}
+				reqBodyData[paramName] = arrayValue
+
+			case "object":
+				var objectValue map[string]interface{}
+				if err := json.Unmarshal([]byte(paramStr), &objectValue); err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("[Error] invalid type for parameter %s, expected object", paramName)), nil
+				}
+				reqBodyData[paramName] = objectValue
+
+			default:
+				return mcp.NewToolResultError(fmt.Sprintf("[Error] unsupported parameter type: %s for %s", paramType, paramName)), nil
+			}
+
+		}
+		reqBodyDataBytes, err := json.Marshal(reqBodyData)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("[Error] failed to marshal request body: %v", err)), nil
+		}
+
+		req, err := http.NewRequest(strings.ToUpper(reqMethod), currentReqURL, bytes.NewBuffer(reqBodyDataBytes))
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("[Error] failed to create HTTP request: %v", err)), nil
+		}
+
+		for _, headerName := range reqHeader {
+			headerValue, ok := request.Params.Arguments[headerName].(string)
+			if !ok {
+				return mcp.NewToolResultError(fmt.Sprintf("[Error] missing or invalid Header: %s", headerName)), nil
+			}
+			req.Header.Add(headerName, headerValue)
+		}
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("[Error] failed to make HTTP request: %v", err)), nil
+		}
+
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("[Error] failed to read HTTP Response: %v", err)), nil
+		}
+		fmt.Println(string(body))
+		return mcp.NewToolResultText(string(body)), nil
 	}
 }
