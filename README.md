@@ -47,3 +47,6 @@ To integrate with `mcphost`, include the following configuration in `.mcp.json`:
     go install github.com/mark3labs/mcphost@latest
     mcphost -m ollama:llama3.2 --config <.mcp.json_file_path>
     ```
+
+## Flow Diagram
+![Flow Diagram](https://github.com/danishjsheikh/swagger-mcp/swagger_mcp_flow_diagram.png?raw=true)
