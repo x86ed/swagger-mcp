@@ -11,7 +11,7 @@ Check out demo video showcasing the project in action:
 If you find this project valuable, please support me on **LinkedIn** by:  
 - 👍 Liking and sharing our demo post  
 - 💬 Leaving your thoughts and feedback in the comments  
-- 🔗 Connecting with us for future updates  
+- 🔗 Connecting with me for future updates  
 
 Your support on LinkedIn will help me reach more people and improve the project!  
 
