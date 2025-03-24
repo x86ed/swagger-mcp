@@ -35,7 +35,7 @@ To integrate with `mcphost`, include the following configuration in `.mcp.json`:
     "mcpServers":
     {
         "swagger_loader": {
-            "command": "mcp-swagger",
+            "command": "swagger-mcp",
             "args": ["<swagger/doc.json_url>"]
         }
     }
@@ -45,7 +45,7 @@ To integrate with `mcphost`, include the following configuration in `.mcp.json`:
 ## Demo Flow
 1. Some Backend:
     ```sh
-    go install go install github.com/danishjsheikh/go-backend-demo@latest 
+    go install github.com/danishjsheikh/go-backend-demo@latest 
     go-backend-demo
     ```
 
