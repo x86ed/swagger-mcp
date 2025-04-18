@@ -5,17 +5,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 
 	"github.com/danishjsheikh/swagger-mcp/app/models"
 )
 
-func LoadSwagger() (models.SwaggerSpec, error) {
-	if len(os.Args) < 2 {
-		return models.SwaggerSpec{}, fmt.Errorf("usage: go run main.go <swagger_json_url>")
-	}
-	reqURL := os.Args[1]
-	resp, err := http.Get(reqURL)
+func LoadSwagger(docJsonUrl string) (models.SwaggerSpec, error) {
+	resp, err := http.Get(docJsonUrl)
 	if err != nil {
 		return models.SwaggerSpec{}, fmt.Errorf("error Getting swagger/doc.json, %v", err.Error())
 

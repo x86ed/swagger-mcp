@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -25,10 +24,7 @@ func ExtractSchemaName(ref, schemaType string) string {
 	return schemaType
 }
 
-func CreateServer(swaggerSpec models.SwaggerSpec) {
-	sseMode := flag.Bool("sse", false, "Run in SSE mode instead of stdio mode")
-	flag.Parse()
-
+func CreateServer(swaggerSpec models.SwaggerSpec, sseMode bool, baseUrl string, port int) {
 	models.McpServer = server.NewMCPServer(
 		"swagegr-mcp",
 		"1.0.0",
@@ -36,11 +32,11 @@ func CreateServer(swaggerSpec models.SwaggerSpec) {
 
 	LoadSwaggerServer(swaggerSpec)
 
-	if *sseMode {
+	if sseMode {
 		// Create and start SSE server
-		sseServer := server.NewSSEServer(models.McpServer, "http://localhost:8080")
-		log.Printf("Starting SSE server on localhost:8080")
-		if err := sseServer.Start(":8080"); err != nil {
+		sseServer := server.NewSSEServer(models.McpServer, baseUrl)
+		log.Printf("Starting SSE server on %s:%d", baseUrl, port)
+		if err := sseServer.Start(fmt.Sprintf(":%d", port)); err != nil {
 			log.Fatalf("Server error: %v", err)
 		}
 	} else {
