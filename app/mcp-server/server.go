@@ -98,8 +98,8 @@ func CreateServer(swaggerSpec models.SwaggerSpec, sseMode bool, sseUrl string, b
 
 	if sseMode {
 		// Create and start SSE server
-		sseServer := server.NewSSEServer(models.McpServer, sseUrl)
-		log.Printf("Starting SSE server on %s:%d", sseUrl, port)
+		sseServer := server.NewSSEServer(models.McpServer, server.WithBaseURL(sseUrl))
+		log.Printf("Starting SSE server on :%d, sse url: %s, tools: %d", port, sseServer.CompleteSseEndpoint(), models.ToolCount)
 		if err := sseServer.Start(fmt.Sprintf(":%d", port)); err != nil {
 			log.Fatalf("Server error: %v", err)
 		}
@@ -114,8 +114,14 @@ func CreateServer(swaggerSpec models.SwaggerSpec, sseMode bool, sseUrl string, b
 func LoadSwaggerServer(swaggerSpec models.SwaggerSpec, baseUrl string, includePaths string, excludePaths string, includeMethods string, excludeMethods string) {
 	includeRegexes := compileRegexes(includePaths)
 	excludeRegexes := compileRegexes(excludePaths)
-	includedMethods := strings.Split(includeMethods, ",")
-	excludedMethods := strings.Split(excludeMethods, ",")
+	includedMethods := []string{}
+	if len(strings.TrimSpace(includeMethods)) > 0 {
+		includedMethods = strings.Split(includeMethods, ",")
+	}
+	excludedMethods := []string{}
+	if len(strings.TrimSpace(excludeMethods)) > 0 {
+		excludedMethods = strings.Split(excludeMethods, ",")
+	}
 
 	for path, methods := range swaggerSpec.Paths {
 		if !shouldIncludePath(path, includeRegexes, excludeRegexes) {
@@ -204,10 +210,10 @@ func LoadSwaggerServer(swaggerSpec models.SwaggerSpec, baseUrl string, includePa
 			toolOption = append(toolOption, mcp.WithDescription(fmt.Sprintf(`Use this tool only when the request exactly matches %s or %s. If you dont have any of the required parameters then always ask user for it, *Dont fill any paramter on your own or keep it empty*. If there is [Error], only state that error in your reponse and stop the reponse there itself. *Do not ever maintain records in your memory for eg list of users or orders*`,
 				details.Summary, details.Description)))
 
-			models.McpServer.AddTool(mcp.NewTool(
-				fmt.Sprintf("%s_%s", method, strings.ReplaceAll(strings.ReplaceAll(path, "}", ""), "{", "")),
-				toolOption...,
-			), CreateMCPToolHandler(reqPathParam, reqURL, reqBody, reqMethod, reqHeader))
+			toolName := fmt.Sprintf("%s_%s", method, strings.ReplaceAll(strings.ReplaceAll(path, "}", ""), "{", ""))
+			fmt.Printf("Add Tool: %s\n", toolName)
+			models.McpServer.AddTool(mcp.NewTool(toolName, toolOption...), CreateMCPToolHandler(reqPathParam, reqURL, reqBody, reqMethod, reqHeader))
+			models.ToolCount++
 		}
 	}
 }

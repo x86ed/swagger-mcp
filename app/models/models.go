@@ -50,3 +50,5 @@ type Property struct {
 var McpServer *server.MCPServer
 
 var BaseUrl string
+
+var ToolCount int
