@@ -36,7 +36,7 @@ To integrate with `mcphost`, include the following configuration in `.mcp.json`:
     {
         "swagger_loader": {
             "command": "swagger-mcp",
-            "args": ["<swagger/doc.json_url>"]
+            "args": ["--specUrl=<swagger/doc.json_url>"]
         }
     }
 }
