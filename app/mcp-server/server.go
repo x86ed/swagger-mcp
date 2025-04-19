@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -24,18 +25,81 @@ func ExtractSchemaName(ref, schemaType string) string {
 	return schemaType
 }
 
-func CreateServer(swaggerSpec models.SwaggerSpec, sseMode bool, baseUrl string, port int) {
+func compileRegexes(paths string) []*regexp.Regexp {
+	var regexes []*regexp.Regexp
+	for _, path := range strings.Split(paths, ",") {
+		if path = strings.TrimSpace(path); path != "" {
+			regex, err := regexp.Compile(path)
+			if err != nil {
+				log.Printf("Invalid regex pattern: %s, error: %v", path, err)
+				continue
+			}
+			regexes = append(regexes, regex)
+		}
+	}
+	return regexes
+}
+
+func shouldIncludePath(path string, includeRegexes, excludeRegexes []*regexp.Regexp) bool {
+	// If no include regexes are specified, include all paths by default
+	include := len(includeRegexes) == 0
+
+	for _, regex := range includeRegexes {
+		if regex.MatchString(path) {
+			include = true
+			break
+		}
+	}
+
+	if !include {
+		return false
+	}
+
+	for _, regex := range excludeRegexes {
+		if regex.MatchString(path) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func shouldIncludeMethod(method string, includeMethods, excludeMethods []string) bool {
+	// If no include methods are specified, include all methods by default
+	include := len(includeMethods) == 0
+
+	for _, m := range includeMethods {
+		if strings.EqualFold(strings.TrimSpace(m), method) {
+			include = true
+			break
+		}
+	}
+
+	if !include {
+		return false
+	}
+
+	for _, m := range excludeMethods {
+		if strings.EqualFold(strings.TrimSpace(m), method) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func CreateServer(swaggerSpec models.SwaggerSpec, sseMode bool, sseUrl string, baseUrl string, port int, includePaths string, excludePaths string, includeMethods string, excludeMethods string) {
 	models.McpServer = server.NewMCPServer(
 		"swagegr-mcp",
 		"1.0.0",
 	)
 
-	LoadSwaggerServer(swaggerSpec)
+	LoadSwaggerServer(swaggerSpec, baseUrl, includePaths, excludePaths, includeMethods, excludeMethods)
 
 	if sseMode {
 		// Create and start SSE server
-		sseServer := server.NewSSEServer(models.McpServer, baseUrl)
-		log.Printf("Starting SSE server on %s:%d", baseUrl, port)
+		sseServer := server.NewSSEServer(models.McpServer, sseUrl)
+		log.Printf("Starting SSE server on %s:%d", sseUrl, port)
 		if err := sseServer.Start(fmt.Sprintf(":%d", port)); err != nil {
 			log.Fatalf("Server error: %v", err)
 		}
@@ -47,13 +111,29 @@ func CreateServer(swaggerSpec models.SwaggerSpec, sseMode bool, baseUrl string, 
 	}
 }
 
-func LoadSwaggerServer(swaggerSpec models.SwaggerSpec) {
+func LoadSwaggerServer(swaggerSpec models.SwaggerSpec, baseUrl string, includePaths string, excludePaths string, includeMethods string, excludeMethods string) {
+	includeRegexes := compileRegexes(includePaths)
+	excludeRegexes := compileRegexes(excludePaths)
+	includedMethods := strings.Split(includeMethods, ",")
+	excludedMethods := strings.Split(excludeMethods, ",")
+
 	for path, methods := range swaggerSpec.Paths {
+		if !shouldIncludePath(path, includeRegexes, excludeRegexes) {
+			continue
+		}
 
 		for method, details := range methods {
+			if !shouldIncludeMethod(method, includedMethods, excludedMethods) {
+				continue
+			}
 			expectedResponse := []string{}
 			toolOption := []mcp.ToolOption{}
-			reqURL := fmt.Sprintf("http://%s%s%s", swaggerSpec.Host, swaggerSpec.BasePath, path)
+			var reqURL string
+			if baseUrl == "" {
+				reqURL = fmt.Sprintf("http://%s%s%s", swaggerSpec.Host, swaggerSpec.BasePath, path)
+			} else {
+				reqURL = fmt.Sprintf("%s%s", baseUrl, path)
+			}
 			reqMethod := fmt.Sprint(method)
 			reqBody := make(map[string]string)
 			reqPathParam := []string{}
