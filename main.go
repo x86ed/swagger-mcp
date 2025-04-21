@@ -22,6 +22,11 @@ func main() {
 	excludePaths := flag.String("excludePaths", "", "Comma-separated list of paths or regex to exclude")
 	includeMethods := flag.String("includeMethods", "", "Comma-separated list of HTTP methods to include")
 	excludeMethods := flag.String("excludeMethods", "", "Comma-separated list of HTTP methods to exclude")
+	security := flag.String("security", "", "API security type: basic, apiKey, or bearer")
+	basicAuth := flag.String("basicAuth", "", "Basic auth credentials in user:password format, used in Authorization header")
+	bearerAuth := flag.String("bearerAuth", "", "Bearer token for Authorization header")
+	apiKeyAuth := flag.String("apiKeyAuth", "", "API key auth, format: 'passAs:name=value', passAs=header/query/cookie, multiple by comma")
+
 	flag.Parse()
 
 	// Validate spec
@@ -66,7 +71,7 @@ func main() {
 	}
 	swagger.ExtractSwagger(swaggerSpec)
 
-	fmt.Printf("Starting server with specUrl: %s, SSE mode: %v, SSE URL: %s, Base URL: %s, Port: %d, Include Paths: %s, Exclude Paths: %s, Include Methods: %s, Exclude Methods: %s\n",
-		*specUrl, *sseMode, *sseUrl, *baseUrl, *port, *includePaths, *excludePaths, *includeMethods, *excludeMethods)
-	mcpserver.CreateServer(swaggerSpec, *sseMode, *sseUrl, *baseUrl, *port, *includePaths, *excludePaths, *includeMethods, *excludeMethods)
+	fmt.Printf("Starting server with specUrl: %s, SSE mode: %v, SSE URL: %s, Base URL: %s, Port: %d, Include Paths: %s, Exclude Paths: %s, Include Methods: %s, Exclude Methods: %s, Security: %s, BasicAuth: %s, ApiKeyAuth: %s, BearerAuth: %s\n",
+		*specUrl, *sseMode, *sseUrl, *baseUrl, *port, *includePaths, *excludePaths, *includeMethods, *excludeMethods, *security, *basicAuth, *apiKeyAuth, *bearerAuth)
+	mcpserver.CreateServer(swaggerSpec, *sseMode, *sseUrl, *baseUrl, *port, *includePaths, *excludePaths, *includeMethods, *excludeMethods, *security, *basicAuth, *apiKeyAuth, *bearerAuth)
 }

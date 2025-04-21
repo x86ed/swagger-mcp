@@ -3,11 +3,13 @@ package mcpserver
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -88,13 +90,27 @@ func shouldIncludeMethod(method string, includeMethods, excludeMethods []string)
 	return true
 }
 
-func CreateServer(swaggerSpec models.SwaggerSpec, sseMode bool, sseUrl string, baseUrl string, port int, includePaths string, excludePaths string, includeMethods string, excludeMethods string) {
+func CreateServer(
+	swaggerSpec models.SwaggerSpec,
+	sseMode bool,
+	sseUrl string,
+	baseUrl string,
+	port int,
+	includePaths string,
+	excludePaths string,
+	includeMethods string,
+	excludeMethods string,
+	security string,
+	basicAuth string,
+	apiKeyAuth string,
+	bearerAuth string,
+) {
 	models.McpServer = server.NewMCPServer(
 		"swagegr-mcp",
 		"1.0.0",
 	)
 
-	LoadSwaggerServer(swaggerSpec, baseUrl, includePaths, excludePaths, includeMethods, excludeMethods)
+	LoadSwaggerServer(swaggerSpec, baseUrl, includePaths, excludePaths, includeMethods, excludeMethods, security, basicAuth, apiKeyAuth, bearerAuth)
 
 	if sseMode {
 		// Create and start SSE server
@@ -111,7 +127,18 @@ func CreateServer(swaggerSpec models.SwaggerSpec, sseMode bool, sseUrl string, b
 	}
 }
 
-func LoadSwaggerServer(swaggerSpec models.SwaggerSpec, baseUrl string, includePaths string, excludePaths string, includeMethods string, excludeMethods string) {
+func LoadSwaggerServer(
+	swaggerSpec models.SwaggerSpec,
+	baseUrl string,
+	includePaths string,
+	excludePaths string,
+	includeMethods string,
+	excludeMethods string,
+	security string,
+	basicAuth string,
+	apiKeyAuth string,
+	bearerAuth string,
+) {
 	includeRegexes := compileRegexes(includePaths)
 	excludeRegexes := compileRegexes(excludePaths)
 	includedMethods := []string{}
@@ -212,13 +239,88 @@ func LoadSwaggerServer(swaggerSpec models.SwaggerSpec, baseUrl string, includePa
 
 			toolName := fmt.Sprintf("%s_%s", method, strings.ReplaceAll(strings.ReplaceAll(path, "}", ""), "{", ""))
 			fmt.Printf("Add Tool: %s\n", toolName)
-			models.McpServer.AddTool(mcp.NewTool(toolName, toolOption...), CreateMCPToolHandler(reqPathParam, reqURL, reqBody, reqMethod, reqHeader))
+			models.McpServer.AddTool(
+				mcp.NewTool(toolName, toolOption...),
+				CreateMCPToolHandler(reqPathParam, reqURL, reqBody, reqMethod, reqHeader, security, basicAuth, apiKeyAuth, bearerAuth),
+			)
 			models.ToolCount++
 		}
 	}
 }
 
-func CreateMCPToolHandler(reqPathParam []string, reqURL string, reqBody map[string]string, reqMethod string, reqHeader []string) server.ToolHandlerFunc {
+func setRequestSecurity(req *http.Request, security string, basicAuth string, apiKeyAuth string, bearerAuth string) {
+	securityType := strings.TrimSpace(security)
+
+	// basic auth
+	if securityType == "basic" && basicAuth != "" {
+		auth := base64.StdEncoding.EncodeToString([]byte(basicAuth))
+		req.Header.Set("Authorization", "Basic "+auth)
+	}
+
+	// bearer auth
+	if securityType == "bearer" && bearerAuth != "" {
+		req.Header.Set("Authorization", "Bearer "+bearerAuth)
+	}
+
+	// apiKey auth
+	// Example: header:token=abc,query:token=xyz,cookie:sid=ccc
+	queryValues := make(map[string]string)
+	cookieValues := []*http.Cookie{}
+	if securityType == "apiKey" && apiKeyAuth != "" {
+		for _, part := range strings.Split(apiKeyAuth, ",") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			// format passAs:name=value
+			colonIdx := strings.Index(part, ":")
+			eqIdx := strings.Index(part, "=")
+			if colonIdx == -1 || eqIdx == -1 || eqIdx < colonIdx+2 {
+				continue
+			}
+			passAs := strings.ToLower(strings.TrimSpace(part[:colonIdx]))
+			name := strings.TrimSpace(part[colonIdx+1 : eqIdx])
+			value := strings.TrimSpace(part[eqIdx+1:])
+			switch passAs {
+			case "header":
+				req.Header.Set(name, value)
+			case "query":
+				queryValues[name] = value
+			case "cookie":
+				cookieValues = append(cookieValues, &http.Cookie{Name: name, Value: value})
+			}
+		}
+	}
+	// add query
+	if len(queryValues) > 0 {
+		origUrl := req.URL.String()
+		u, err := url.Parse(origUrl)
+		if err == nil {
+			q := u.Query()
+			for k, v := range queryValues {
+				q.Set(k, v)
+			}
+			u.RawQuery = q.Encode()
+			req.URL = u
+		}
+	}
+	// add cookie
+	for _, c := range cookieValues {
+		req.AddCookie(c)
+	}
+}
+
+func CreateMCPToolHandler(
+	reqPathParam []string,
+	reqURL string,
+	reqBody map[string]string,
+	reqMethod string,
+	reqHeader []string,
+	security string,
+	basicAuth string,
+	apiKeyAuth string,
+	bearerAuth string,
+) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		currentReqURL := reqURL
 		for _, paramName := range reqPathParam {
@@ -290,6 +392,7 @@ func CreateMCPToolHandler(reqPathParam []string, reqURL string, reqBody map[stri
 			return mcp.NewToolResultError(fmt.Sprintf("[Error] failed to create HTTP request: %v", err)), nil
 		}
 
+		// 原始 header 参数
 		for _, headerName := range reqHeader {
 			headerValue, ok := request.Params.Arguments[headerName].(string)
 			if !ok {
@@ -297,6 +400,9 @@ func CreateMCPToolHandler(reqPathParam []string, reqURL string, reqBody map[stri
 			}
 			req.Header.Add(headerName, headerValue)
 		}
+
+		// 设置API请求安全认证参数
+		setRequestSecurity(req, security, basicAuth, apiKeyAuth, bearerAuth)
 
 		client := &http.Client{}
 		resp, err := client.Do(req)
