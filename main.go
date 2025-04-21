@@ -12,12 +12,43 @@ import (
 	"github.com/danishjsheikh/swagger-mcp/app/swagger"
 )
 
+func getSseUrlAddr(sseUrl, sseAddr string) (string, string) {
+	// Only complement if one is empty; if both are set, use as-is
+	if sseAddr != "" && sseUrl != "" {
+		return sseUrl, sseAddr
+	}
+	if sseAddr != "" {
+		// ":Port" or "IP:Port"
+		if strings.HasPrefix(sseAddr, ":") {
+			// sseUrl = http://localhost:Port
+			return "http://localhost" + sseAddr, sseAddr
+		}
+		if !strings.Contains(sseAddr, ":") {
+			log.Fatal("sseAddr must be in :Port or IP:Port format")
+		}
+		return "http://" + sseAddr, sseAddr
+	} else if sseUrl != "" {
+		u, err := url.Parse(sseUrl)
+		if err != nil {
+			log.Fatalf("Invalid sseUrl: %v", err)
+		}
+		host := u.Host
+		if host == "" {
+			log.Fatal("sseUrl must contain host")
+		}
+		return sseUrl, host
+	} else {
+		log.Fatal("Either sseAddr or sseUrl must be provided")
+	}
+	return "", ""
+}
+
 func main() {
 	specUrl := flag.String("specUrl", "", "URL of the Swagger JSON specification")
 	sseMode := flag.Bool("sse", false, "Run in SSE mode instead of stdio mode")
-	sseUrl := flag.String("sseUrl", "http://localhost:8080", "URL for the SSE server")
+	sseAddr := flag.String("sseAddr", "", "SSE server listen address in :Port or IP:Port format")
+	sseUrl := flag.String("sseUrl", "", "Base URL for the SSE server")
 	baseUrl := flag.String("baseUrl", "", "Base URL for API requests")
-	port := flag.Int("port", 8080, "Port for the SSE server")
 	includePaths := flag.String("includePaths", "", "Comma-separated list of paths or regex to include")
 	excludePaths := flag.String("excludePaths", "", "Comma-separated list of paths or regex to exclude")
 	includeMethods := flag.String("includeMethods", "", "Comma-separated list of HTTP methods to include")
@@ -48,11 +79,6 @@ func main() {
 		log.Fatal("Invalid specUrl format. Must be a valid HTTP URL or file:// path")
 	}
 
-	// Validate sseUrl
-	if !strings.HasPrefix(*sseUrl, "http://") && !strings.HasPrefix(*sseUrl, "https://") {
-		log.Fatal("sseUrl must start with http:// or https://")
-	}
-
 	// Validate baseUrl
 	if *baseUrl != "" {
 		if !strings.HasPrefix(*baseUrl, "http://") && !strings.HasPrefix(*baseUrl, "https://") {
@@ -60,10 +86,8 @@ func main() {
 		}
 	}
 
-	// Validate port
-	if *port < 1 || *port > 65535 {
-		log.Fatal("Port must be between 1 and 65535")
-	}
+	// get final sseAddr and sseUrl
+	finalSseUrl, finalSseAddr := getSseUrlAddr(*sseUrl, *sseAddr)
 
 	swaggerSpec, err := swagger.LoadSwagger(*specUrl)
 	if err != nil {
@@ -71,7 +95,7 @@ func main() {
 	}
 	swagger.ExtractSwagger(swaggerSpec)
 
-	fmt.Printf("Starting server with specUrl: %s, SSE mode: %v, SSE URL: %s, Base URL: %s, Port: %d, Include Paths: %s, Exclude Paths: %s, Include Methods: %s, Exclude Methods: %s, Security: %s, BasicAuth: %s, ApiKeyAuth: %s, BearerAuth: %s\n",
-		*specUrl, *sseMode, *sseUrl, *baseUrl, *port, *includePaths, *excludePaths, *includeMethods, *excludeMethods, *security, *basicAuth, *apiKeyAuth, *bearerAuth)
-	mcpserver.CreateServer(swaggerSpec, *sseMode, *sseUrl, *baseUrl, *port, *includePaths, *excludePaths, *includeMethods, *excludeMethods, *security, *basicAuth, *apiKeyAuth, *bearerAuth)
+	fmt.Printf("Starting server with specUrl: %s, SSE mode: %v, SSE URL: %s, SSE Addr: %s, Base URL: %s, Include Paths: %s, Exclude Paths: %s, Include Methods: %s, Exclude Methods: %s, Security: %s, BasicAuth: %s, ApiKeyAuth: %s, BearerAuth: %s\n",
+		*specUrl, *sseMode, finalSseUrl, finalSseAddr, *baseUrl, *includePaths, *excludePaths, *includeMethods, *excludeMethods, *security, *basicAuth, *apiKeyAuth, *bearerAuth)
+	mcpserver.CreateServer(swaggerSpec, *sseMode, finalSseAddr, finalSseUrl, *baseUrl, *includePaths, *excludePaths, *includeMethods, *excludeMethods, *security, *basicAuth, *apiKeyAuth, *bearerAuth)
 }

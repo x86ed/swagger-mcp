@@ -93,9 +93,9 @@ func shouldIncludeMethod(method string, includeMethods, excludeMethods []string)
 func CreateServer(
 	swaggerSpec models.SwaggerSpec,
 	sseMode bool,
+	sseAddr string,
 	sseUrl string,
 	baseUrl string,
-	port int,
 	includePaths string,
 	excludePaths string,
 	includeMethods string,
@@ -115,8 +115,8 @@ func CreateServer(
 	if sseMode {
 		// Create and start SSE server
 		sseServer := server.NewSSEServer(models.McpServer, server.WithBaseURL(sseUrl))
-		log.Printf("Starting SSE server on :%d, sse url: %s, tools: %d", port, sseServer.CompleteSseEndpoint(), models.ToolCount)
-		if err := sseServer.Start(fmt.Sprintf(":%d", port)); err != nil {
+		log.Printf("Starting SSE server on %s, endpoint: %s, tools: %d", sseAddr, sseServer.CompleteSseEndpoint(), models.ToolCount)
+		if err := sseServer.Start(sseAddr); err != nil {
 			log.Fatalf("Server error: %v", err)
 		}
 	} else {
