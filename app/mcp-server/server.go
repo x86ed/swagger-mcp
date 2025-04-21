@@ -170,6 +170,7 @@ func LoadSwaggerServer(
 			reqMethod := fmt.Sprint(method)
 			reqBody := make(map[string]string)
 			reqPathParam := []string{}
+			reqQueryParam := []string{}
 			reqHeader := []string{}
 
 			for _, param := range details.Parameters {
@@ -187,6 +188,23 @@ func LoadSwaggerServer(
 						))
 					}
 					reqHeader = append(reqHeader, param.Name)
+				}
+			}
+			for _, param := range details.Parameters {
+				if param.In == "query" {
+					if param.Required {
+						toolOption = append(toolOption, mcp.WithString(
+							fmt.Sprint(param.Name),
+							mcp.Description(fmt.Sprintf("The data for %s", param.Name)),
+							mcp.Required(),
+						))
+					} else {
+						toolOption = append(toolOption, mcp.WithString(
+							fmt.Sprint(param.Name),
+							mcp.Description(fmt.Sprintf("The data for %s", param.Name)),
+						))
+					}
+					reqQueryParam = append(reqQueryParam, param.Name)
 				}
 			}
 
@@ -241,7 +259,7 @@ func LoadSwaggerServer(
 			fmt.Printf("Add Tool: %s\n", toolName)
 			models.McpServer.AddTool(
 				mcp.NewTool(toolName, toolOption...),
-				CreateMCPToolHandler(reqPathParam, reqURL, reqBody, reqMethod, reqHeader, security, basicAuth, apiKeyAuth, bearerAuth),
+				CreateMCPToolHandler(reqPathParam, reqQueryParam, reqURL, reqBody, reqMethod, reqHeader, security, basicAuth, apiKeyAuth, bearerAuth),
 			)
 			models.ToolCount++
 		}
@@ -312,6 +330,7 @@ func setRequestSecurity(req *http.Request, security string, basicAuth string, ap
 
 func CreateMCPToolHandler(
 	reqPathParam []string,
+	reqQueryParam []string,
 	reqURL string,
 	reqBody map[string]string,
 	reqMethod string,
@@ -329,6 +348,24 @@ func CreateMCPToolHandler(
 				return mcp.NewToolResultError(fmt.Sprintf("[Error] missing or invalid Path Parameter: %s", paramName)), nil
 			}
 			currentReqURL = strings.Replace(currentReqURL, fmt.Sprintf("{%s}", paramName), param, 1)
+		}
+
+		// query param
+		if len(reqQueryParam) > 0 {
+			u, err := url.Parse(currentReqURL)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("[Error] failed to parse URL: %v", err)), nil
+			}
+			q := u.Query()
+			for _, name := range reqQueryParam {
+				val, ok := request.Params.Arguments[name].(string)
+				if !ok {
+					return mcp.NewToolResultError(fmt.Sprintf("[Error] missing or invalid Query Parameter: %s", name)), nil
+				}
+				q.Set(name, val)
+			}
+			u.RawQuery = q.Encode()
+			currentReqURL = u.String()
 		}
 
 		reqBodyData := make(map[string]interface{})
@@ -387,12 +424,12 @@ func CreateMCPToolHandler(
 			return mcp.NewToolResultError(fmt.Sprintf("[Error] failed to marshal request body: %v", err)), nil
 		}
 
+		fmt.Printf("Request  : %s %s\n", strings.ToUpper(reqMethod), currentReqURL)
 		req, err := http.NewRequest(strings.ToUpper(reqMethod), currentReqURL, bytes.NewBuffer(reqBodyDataBytes))
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("[Error] failed to create HTTP request: %v", err)), nil
 		}
 
-		// 原始 header 参数
 		for _, headerName := range reqHeader {
 			headerValue, ok := request.Params.Arguments[headerName].(string)
 			if !ok {
@@ -401,7 +438,7 @@ func CreateMCPToolHandler(
 			req.Header.Add(headerName, headerValue)
 		}
 
-		// 设置API请求安全认证参数
+		// request security
 		setRequestSecurity(req, security, basicAuth, apiKeyAuth, bearerAuth)
 
 		client := &http.Client{}
@@ -416,7 +453,7 @@ func CreateMCPToolHandler(
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("[Error] failed to read HTTP Response: %v", err)), nil
 		}
-		fmt.Println(string(body))
+		fmt.Printf("Response : %s\n", string(body))
 		return mcp.NewToolResultText(string(body)), nil
 	}
 }
