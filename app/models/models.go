@@ -2,11 +2,38 @@ package models
 
 import "github.com/mark3labs/mcp-go/server"
 
+type Server struct {
+	URL         string `json:"url"`
+	Description string `json:"description,omitempty"`
+}
+
 type SwaggerSpec struct {
-	Host        string                         `json:"host"`
-	BasePath    string                         `json:"basePath"`
+	// Swagger 2.0 fields
+	Host        string                         `json:"host,omitempty"`
+	BasePath    string                         `json:"basePath,omitempty"`
+	Swagger     string                         `json:"swagger,omitempty"`
+	
+	// OpenAPI 3.0 fields
+	OpenAPI     string                         `json:"openapi,omitempty"`
+	Servers     []Server                       `json:"servers,omitempty"`
+	Components  *Components                    `json:"components,omitempty"`
+	
+	// Common fields
 	Paths       map[string]map[string]Endpoint `json:"paths"`
-	Definitions map[string]Definition          `json:"definitions"`
+	Definitions map[string]Definition          `json:"definitions,omitempty"` // Swagger 2.0
+}
+
+type Components struct {
+	Schemas map[string]Definition `json:"schemas,omitempty"` // OpenAPI 3.0
+}
+
+type Definition struct {
+	Type       string              `json:"type"`
+	Properties map[string]Property `json:"properties"`
+}
+
+type Property struct {
+	Type string `json:"type"`
 }
 
 type Endpoint struct {
@@ -14,8 +41,8 @@ type Endpoint struct {
 	Description string              `json:"description"`
 	Parameters  []Parameter         `json:"parameters"`
 	Responses   map[string]Response `json:"responses"`
-	Consumes    []string            `json:"consumes"`
-	Produces    []string            `json:"produces"`
+	Consumes    []string           `json:"consumes"`
+	Produces    []string           `json:"produces"`
 }
 
 type Parameter struct {
@@ -38,15 +65,4 @@ type SchemaRef struct {
 	Type string `json:"type,omitempty"`
 }
 
-type Definition struct {
-	Type       string              `json:"type"`
-	Properties map[string]Property `json:"properties"`
-}
-
-type Property struct {
-	Type string `json:"type"`
-}
-
 var McpServer *server.MCPServer
-
-var BaseUrl string
