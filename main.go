@@ -33,10 +33,24 @@ func getSseUrlAddr(sseUrl, sseAddr string) (string, string) {
 			log.Fatalf("Invalid sseUrl: %v", err)
 		}
 		host := u.Host
-		if host == "" {
-			log.Fatal("sseUrl must contain host")
+		port := ""
+		if strings.Contains(host, ":") {
+			parts := strings.Split(host, ":")
+			host = parts[0]
+			port = parts[1]
 		}
-		return sseUrl, host
+		// 没有端口时根据 scheme 补全
+		if port == "" {
+			switch u.Scheme {
+			case "http":
+				port = "80"
+			case "https":
+				port = "443"
+			default:
+				log.Fatalf("Unknown scheme for sseUrl: %s", u.Scheme)
+			}
+		}
+		return sseUrl, host + ":" + port
 	} else {
 		log.Fatal("Either sseAddr or sseUrl must be provided")
 	}
