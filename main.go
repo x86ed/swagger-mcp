@@ -58,6 +58,7 @@ func getSseUrlAddr(sseUrl, sseAddr string) (string, string) {
 }
 
 func main() {
+	var finalSseUrl, finalSseAddr string
 	specUrl := flag.String("specUrl", "", "URL of the Swagger JSON specification")
 	sseMode := flag.Bool("sse", false, "Run in SSE mode instead of stdio mode")
 	sseAddr := flag.String("sseAddr", "", "SSE server listen address in :Port or IP:Port format")
@@ -100,9 +101,9 @@ func main() {
 		}
 	}
 
-	// get final sseAddr and sseUrl
-	finalSseUrl, finalSseAddr := getSseUrlAddr(*sseUrl, *sseAddr)
-
+	if *sseMode { // get final sseAddr and sseUrl
+		finalSseUrl, finalSseAddr = getSseUrlAddr(*sseUrl, *sseAddr)
+	}
 	swaggerSpec, err := swagger.LoadSwagger(*specUrl)
 	if err != nil {
 		log.Fatalf("Failed to load Swagger spec: %v", err)
