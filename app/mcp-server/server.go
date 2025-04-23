@@ -437,7 +437,7 @@ func CreateMCPToolHandler(
 			}
 			req.Header.Add(headerName, headerValue)
 		}
-
+		req.Header.Set("Content-Type", "application/json")
 		// request security
 		setRequestSecurity(req, security, basicAuth, apiKeyAuth, bearerAuth)
 

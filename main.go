@@ -14,7 +14,7 @@ import (
 
 func getSseUrlAddr(sseUrl, sseAddr string) (string, string) {
 	// Only complement if one is empty; if both are set, use as-is
-	if sseAddr != "" && sseUrl != "" {
+	if sseAddr == "" && sseUrl == "" {
 		return "http://localhost:8080", "localhost:8080"
 	}
 	if sseAddr != "" {
