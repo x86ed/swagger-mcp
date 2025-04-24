@@ -65,4 +65,18 @@ type SchemaRef struct {
 	Type string `json:"type,omitempty"`
 }
 
+type Definition struct {
+	Type       string              `json:"type"`
+	Properties map[string]Property `json:"properties"`
+}
+
+type Property struct {
+	Type string `json:"type"`
+}
+
 var McpServer *server.MCPServer
+
+var BaseUrl string
+
+var ToolCount int
+

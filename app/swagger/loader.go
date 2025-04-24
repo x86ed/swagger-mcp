@@ -6,25 +6,32 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/danishjsheikh/swagger-mcp/app/models"
 )
 
-func LoadSwagger() (models.SwaggerSpec, error) {
-	if len(os.Args) < 2 {
-		return models.SwaggerSpec{}, fmt.Errorf("usage: go run main.go <swagger_json_url>")
-	}
-	reqURL := os.Args[1]
-	resp, err := http.Get(reqURL)
-	if err != nil {
-		return models.SwaggerSpec{}, fmt.Errorf("error Getting swagger/doc.json, %v", err.Error())
+func LoadSwagger(specUrl string) (models.SwaggerSpec, error) {
+	var body []byte
+	var err error
 
-	}
+	if strings.HasPrefix(specUrl, "file://") {
+		filePath := strings.TrimPrefix(specUrl, "file://")
+		body, err = os.ReadFile(filePath)
+		if err != nil {
+			return models.SwaggerSpec{}, fmt.Errorf("error reading file: %v", err)
+		}
+	} else {
+		resp, err := http.Get(specUrl)
+		if err != nil {
+			return models.SwaggerSpec{}, fmt.Errorf("error getting spec: %v", err)
+		}
+		defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return models.SwaggerSpec{}, fmt.Errorf("error reading swagger/doc.json, %v", err.Error())
-
+		body, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return models.SwaggerSpec{}, fmt.Errorf("error reading spec: %v", err)
+		}
 	}
 	var swaggerSpec models.SwaggerSpec
 	if err := json.Unmarshal(body, &swaggerSpec); err != nil {

@@ -28,6 +28,24 @@ go install github.com/danishjsheikh/swagger-mcp@latest
 swagger-mcp
 ```
 
+## Run Configuration
+To run `swagger-mcp` directly, use:
+```sh
+swagger-mcp --specUrl=https://your_swagger_api_docs.json
+```
+Main flags:
+- `--specUrl`: Swagger/OpenAPI JSON URL (required)
+- `--sseMode`: Run in SSE mode (default: false, if true runs as SSE server, otherwise uses stdio)
+- `--sseAddr`: SSE server listen address in IP:Port or :Port format (if empty, will use IP:Port from --sseUrl)
+- `--sseUrl`: SSE server base URL (if empty, will use sseAddr to generate, e.g. http://IP:Port or http://localhost:Port)
+- If both --sseAddr and --sseUrl are set, they are used as-is without auto-complement.
+- `--baseUrl`: Override base URL for API requests
+- `--security`: API security type (`basic`, `apiKey`, or `bearer`)
+- `--basicAuth`: Basic auth in user:password format
+- `--bearerAuth`: Bearer token for Authorization header
+- `--apiKeyAuth`: API key(s), format `passAs:name=value` (e.g. `header:token=abc,query:user=foo,cookie:sid=xxx`)
+- See main.go for all supported flags and options.
+
 ## MCP Configuration
 To integrate with `mcphost`, include the following configuration in `.mcp.json`:
 ```json
@@ -36,7 +54,7 @@ To integrate with `mcphost`, include the following configuration in `.mcp.json`:
     {
         "swagger_loader": {
             "command": "swagger-mcp",
-            "args": ["<swagger/doc.json_url>"]
+            "args": ["--specUrl=<swagger/doc.json_url>"]
         }
     }
 }
