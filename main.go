@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	mcpserver "github.com/danishjsheikh/swagger-mcp/app/mcp-server"
+	"github.com/danishjsheikh/swagger-mcp/app/models"
 	"github.com/danishjsheikh/swagger-mcp/app/swagger"
 )
 
@@ -110,7 +111,27 @@ func main() {
 	}
 	swagger.ExtractSwagger(swaggerSpec)
 
+	config := models.Config{
+		SpecUrl: *specUrl,
+		SseCfg: models.SseConfig{
+			SseMode: *sseMode,
+			SseAddr: finalSseAddr,
+			SseUrl:  finalSseUrl,
+		},
+		ApiCfg: models.ApiConfig{
+			BaseUrl:        *baseUrl,
+			IncludePaths:   *includePaths,
+			ExcludePaths:   *excludePaths,
+			IncludeMethods: *includeMethods,
+			ExcludeMethods: *excludeMethods,
+			Security:       *security,
+			BasicAuth:      *basicAuth,
+			ApiKeyAuth:     *apiKeyAuth,
+			BearerAuth:     *bearerAuth,
+		},
+	}
+
 	fmt.Printf("Starting server with specUrl: %s, SSE mode: %v, SSE URL: %s, SSE Addr: %s, Base URL: %s, Include Paths: %s, Exclude Paths: %s, Include Methods: %s, Exclude Methods: %s, Security: %s, BasicAuth: %s, ApiKeyAuth: %s, BearerAuth: %s\n",
-		*specUrl, *sseMode, finalSseUrl, finalSseAddr, *baseUrl, *includePaths, *excludePaths, *includeMethods, *excludeMethods, *security, *basicAuth, *apiKeyAuth, *bearerAuth)
-	mcpserver.CreateServer(swaggerSpec, *sseMode, finalSseAddr, finalSseUrl, *baseUrl, *includePaths, *excludePaths, *includeMethods, *excludeMethods, *security, *basicAuth, *apiKeyAuth, *bearerAuth)
+		config.SpecUrl, config.SseCfg.SseMode, config.SseCfg.SseUrl, config.SseCfg.SseAddr, config.ApiCfg.BaseUrl, config.ApiCfg.IncludePaths, config.ApiCfg.ExcludePaths, config.ApiCfg.IncludeMethods, config.ApiCfg.ExcludeMethods, config.ApiCfg.Security, config.ApiCfg.BasicAuth, config.ApiCfg.ApiKeyAuth, config.ApiCfg.BearerAuth)
+	mcpserver.CreateServer(swaggerSpec, config)
 }

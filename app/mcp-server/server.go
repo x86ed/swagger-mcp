@@ -90,64 +90,39 @@ func shouldIncludeMethod(method string, includeMethods, excludeMethods []string)
 	return true
 }
 
-func CreateServer(
-	swaggerSpec models.SwaggerSpec,
-	sseMode bool,
-	sseAddr string,
-	sseUrl string,
-	baseUrl string,
-	includePaths string,
-	excludePaths string,
-	includeMethods string,
-	excludeMethods string,
-	security string,
-	basicAuth string,
-	apiKeyAuth string,
-	bearerAuth string,
-) {
-	models.McpServer = server.NewMCPServer(
+func CreateServer(swaggerSpec models.SwaggerSpec, config models.Config) {
+	mcpServer := server.NewMCPServer(
 		"swagegr-mcp",
 		"1.0.0",
 	)
 
-	LoadSwaggerServer(swaggerSpec, baseUrl, includePaths, excludePaths, includeMethods, excludeMethods, security, basicAuth, apiKeyAuth, bearerAuth)
+	LoadSwaggerServer(mcpServer, swaggerSpec, config.ApiCfg)
 
-	if sseMode {
+	if config.SseCfg.SseMode {
 		// Create and start SSE server
-		sseServer := server.NewSSEServer(models.McpServer, server.WithBaseURL(sseUrl))
-		log.Printf("Starting SSE server on %s, endpoint: %s, tools: %d", sseAddr, sseServer.CompleteSseEndpoint(), models.ToolCount)
-		if err := sseServer.Start(sseAddr); err != nil {
+		sseServer := server.NewSSEServer(mcpServer, server.WithBaseURL(config.SseCfg.SseUrl))
+		log.Printf("Starting SSE server on %s, endpoint: %s", config.SseCfg.SseAddr, sseServer.CompleteSseEndpoint())
+		if err := sseServer.Start(config.SseCfg.SseAddr); err != nil {
 			log.Fatalf("Server error: %v", err)
 		}
 	} else {
 		// Run as stdio server
-		if err := server.ServeStdio(models.McpServer); err != nil {
+		if err := server.ServeStdio(mcpServer); err != nil {
 			log.Fatalf("Server error: %v", err)
 		}
 	}
 }
 
-func LoadSwaggerServer(
-	swaggerSpec models.SwaggerSpec,
-	baseUrl string,
-	includePaths string,
-	excludePaths string,
-	includeMethods string,
-	excludeMethods string,
-	security string,
-	basicAuth string,
-	apiKeyAuth string,
-	bearerAuth string,
-) {
-	includeRegexes := compileRegexes(includePaths)
-	excludeRegexes := compileRegexes(excludePaths)
+func LoadSwaggerServer(mcpServer *server.MCPServer, swaggerSpec models.SwaggerSpec, apiCfg models.ApiConfig) {
+	includeRegexes := compileRegexes(apiCfg.IncludePaths)
+	excludeRegexes := compileRegexes(apiCfg.ExcludePaths)
 	includedMethods := []string{}
-	if len(strings.TrimSpace(includeMethods)) > 0 {
-		includedMethods = strings.Split(includeMethods, ",")
+	if len(strings.TrimSpace(apiCfg.IncludeMethods)) > 0 {
+		includedMethods = strings.Split(apiCfg.IncludeMethods, ",")
 	}
 	excludedMethods := []string{}
-	if len(strings.TrimSpace(excludeMethods)) > 0 {
-		excludedMethods = strings.Split(excludeMethods, ",")
+	if len(strings.TrimSpace(apiCfg.ExcludeMethods)) > 0 {
+		excludedMethods = strings.Split(apiCfg.ExcludeMethods, ",")
 	}
 
 	for path, methods := range swaggerSpec.Paths {
@@ -164,30 +139,32 @@ func LoadSwaggerServer(
 			toolOption := []mcp.ToolOption{}
 
 			var reqURL string
-			if baseUrl == "" {
+			var baseURL string
+
+			if apiCfg.BaseUrl == "" {
 				// Determine base URL based on version
 				if swaggerSpec.OpenAPI != "" {
 					// OpenAPI 3.0
 					if len(swaggerSpec.Servers) > 0 {
-						baseUrl = strings.TrimSuffix(swaggerSpec.Servers[0].URL, "/")
+						baseURL = strings.TrimSuffix(swaggerSpec.Servers[0].URL, "/")
 					} else {
-						baseUrl = "/" // Default to relative path if no servers defined
+						baseURL = "/" // Default to relative path if no servers defined
 					}
 				} else {
 					// Swagger 2.0
-					baseUrl = swaggerSpec.Host
-					if !strings.HasPrefix(baseUrl, "http://") && !strings.HasPrefix(baseUrl, "https://") {
-						baseUrl = "https://" + baseUrl
+					baseURL = swaggerSpec.Host
+					if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
+						baseURL = "https://" + baseURL
 					}
 					if swaggerSpec.BasePath != "" {
-						baseUrl = strings.TrimSuffix(baseUrl, "/") + "/" + strings.TrimPrefix(swaggerSpec.BasePath, "/")
+						baseURL = strings.TrimSuffix(baseURL, "/") + "/" + strings.TrimPrefix(swaggerSpec.BasePath, "/")
 					}
 				}
-
-				reqURL = strings.TrimSuffix(baseUrl, "/") + "/" + strings.TrimPrefix(path, "/")
 			} else {
-				reqURL = strings.TrimSuffix(baseUrl, "/") + "/" + strings.TrimPrefix(path, "/")
+				baseURL = apiCfg.BaseUrl
 			}
+
+			reqURL = strings.TrimSuffix(baseURL, "/") + "/" + strings.TrimPrefix(path, "/")
 
 			reqMethod := fmt.Sprint(method)
 			reqBody := make(map[string]string)
@@ -279,11 +256,10 @@ func LoadSwaggerServer(
 
 			toolName := fmt.Sprintf("%s_%s", method, strings.ReplaceAll(strings.ReplaceAll(path, "}", ""), "{", ""))
 			fmt.Printf("Add Tool: %s\n", toolName)
-			models.McpServer.AddTool(
+			mcpServer.AddTool(
 				mcp.NewTool(toolName, toolOption...),
-				CreateMCPToolHandler(reqPathParam, reqQueryParam, reqURL, reqBody, reqMethod, reqHeader, security, basicAuth, apiKeyAuth, bearerAuth),
+				CreateMCPToolHandler(reqPathParam, reqQueryParam, reqURL, reqBody, reqMethod, reqHeader, apiCfg.Security, apiCfg.BasicAuth, apiCfg.ApiKeyAuth, apiCfg.BearerAuth),
 			)
-			models.ToolCount++
 		}
 	}
 }

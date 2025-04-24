@@ -1,7 +1,5 @@
 package models
 
-import "github.com/mark3labs/mcp-go/server"
-
 type Server struct {
 	URL         string `json:"url"`
 	Description string `json:"description,omitempty"`
@@ -65,8 +63,29 @@ type SchemaRef struct {
 	Type string `json:"type,omitempty"`
 }
 
-var McpServer *server.MCPServer
+// SseConfig stores SSE (Server-Sent Events) related parameters
+type SseConfig struct {
+	SseMode bool   `json:"sseMode"` // Whether to run in SSE mode
+	SseAddr string `json:"sseAddr"` // SSE server listen address
+	SseUrl  string `json:"sseUrl"`  // Base URL for the SSE server
+}
 
-var BaseUrl string
+// ApiConfig stores API related parameters
+type ApiConfig struct {
+	BaseUrl        string `json:"baseUrl"`        // Base URL for API requests
+	IncludePaths   string `json:"includePaths"`   // List of paths or regex patterns to include
+	ExcludePaths   string `json:"excludePaths"`   // List of paths or regex patterns to exclude
+	IncludeMethods string `json:"includeMethods"` // List of HTTP methods to include
+	ExcludeMethods string `json:"excludeMethods"` // List of HTTP methods to exclude
+	Security       string `json:"security"`       // API security type
+	BasicAuth      string `json:"basicAuth"`      // Basic auth credentials
+	ApiKeyAuth     string `json:"apiKeyAuth"`     // API key authentication information
+	BearerAuth     string `json:"bearerAuth"`     // Bearer token
+}
 
-var ToolCount int
+// Config stores all command line parameters
+type Config struct {
+	SpecUrl string    `json:"specUrl"` // URL of the Swagger JSON specification
+	SseCfg  SseConfig `json:"sseCfg"`  // SSE related configuration
+	ApiCfg  ApiConfig `json:"apiCfg"`  // API related configuration
+}
