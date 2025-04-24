@@ -151,6 +151,7 @@ func LoadSwaggerServer(
 	}
 
 	for path, methods := range swaggerSpec.Paths {
+
 		if !shouldIncludePath(path, includeRegexes, excludeRegexes) {
 			continue
 		}
@@ -161,12 +162,33 @@ func LoadSwaggerServer(
 			}
 			expectedResponse := []string{}
 			toolOption := []mcp.ToolOption{}
+
 			var reqURL string
 			if baseUrl == "" {
-				reqURL = fmt.Sprintf("http://%s%s%s", swaggerSpec.Host, swaggerSpec.BasePath, path)
+        // Determine base URL based on version
+        if swaggerSpec.OpenAPI != "" {
+          // OpenAPI 3.0
+          if len(swaggerSpec.Servers) > 0 {
+            baseUrl = strings.TrimSuffix(swaggerSpec.Servers[0].URL, "/")
+          } else {
+            baseUrl = "/"  // Default to relative path if no servers defined
+          }
+        } else {
+          // Swagger 2.0
+          baseUrl = swaggerSpec.Host
+          if !strings.HasPrefix(baseUrl, "http://") && !strings.HasPrefix(baseUrl, "https://") {
+            baseUrl = "https://" + baseUrl
+          }
+          if swaggerSpec.BasePath != "" {
+            baseUrl = strings.TrimSuffix(baseUrl, "/") + "/" + strings.TrimPrefix(swaggerSpec.BasePath, "/")
+          }
+        }
+
+        reqURL := strings.TrimSuffix(baseUrl, "/") + "/" + strings.TrimPrefix(path, "/")
 			} else {
-				reqURL = fmt.Sprintf("%s%s", baseUrl, path)
+				reqURL = strings.TrimSuffix(baseUrl, "/") + "/" + strings.TrimPrefix(path, "/")
 			}
+
 			reqMethod := fmt.Sprint(method)
 			reqBody := make(map[string]string)
 			reqPathParam := []string{}
