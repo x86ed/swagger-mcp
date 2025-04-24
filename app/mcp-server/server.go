@@ -165,26 +165,26 @@ func LoadSwaggerServer(
 
 			var reqURL string
 			if baseUrl == "" {
-        // Determine base URL based on version
-        if swaggerSpec.OpenAPI != "" {
-          // OpenAPI 3.0
-          if len(swaggerSpec.Servers) > 0 {
-            baseUrl = strings.TrimSuffix(swaggerSpec.Servers[0].URL, "/")
-          } else {
-            baseUrl = "/"  // Default to relative path if no servers defined
-          }
-        } else {
-          // Swagger 2.0
-          baseUrl = swaggerSpec.Host
-          if !strings.HasPrefix(baseUrl, "http://") && !strings.HasPrefix(baseUrl, "https://") {
-            baseUrl = "https://" + baseUrl
-          }
-          if swaggerSpec.BasePath != "" {
-            baseUrl = strings.TrimSuffix(baseUrl, "/") + "/" + strings.TrimPrefix(swaggerSpec.BasePath, "/")
-          }
-        }
+				// Determine base URL based on version
+				if swaggerSpec.OpenAPI != "" {
+					// OpenAPI 3.0
+					if len(swaggerSpec.Servers) > 0 {
+						baseUrl = strings.TrimSuffix(swaggerSpec.Servers[0].URL, "/")
+					} else {
+						baseUrl = "/" // Default to relative path if no servers defined
+					}
+				} else {
+					// Swagger 2.0
+					baseUrl = swaggerSpec.Host
+					if !strings.HasPrefix(baseUrl, "http://") && !strings.HasPrefix(baseUrl, "https://") {
+						baseUrl = "https://" + baseUrl
+					}
+					if swaggerSpec.BasePath != "" {
+						baseUrl = strings.TrimSuffix(baseUrl, "/") + "/" + strings.TrimPrefix(swaggerSpec.BasePath, "/")
+					}
+				}
 
-        reqURL := strings.TrimSuffix(baseUrl, "/") + "/" + strings.TrimPrefix(path, "/")
+				reqURL = strings.TrimSuffix(baseUrl, "/") + "/" + strings.TrimPrefix(path, "/")
 			} else {
 				reqURL = strings.TrimSuffix(baseUrl, "/") + "/" + strings.TrimPrefix(path, "/")
 			}
