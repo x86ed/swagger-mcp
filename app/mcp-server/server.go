@@ -19,6 +19,8 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
+const sseHeadersKey = "__sseHeadersKey"
+
 func ExtractSchemaName(ref, schemaType string) string {
 	if ref != "" {
 		parts := strings.Split(ref, "/")
@@ -100,7 +102,17 @@ func CreateServer(swaggerSpec models.SwaggerSpec, config models.Config) {
 
 	if config.SseCfg.SseMode {
 		// Create and start SSE server
-		sseServer := server.NewSSEServer(mcpServer, server.WithBaseURL(config.SseCfg.SseUrl))
+		sseServer := server.NewSSEServer(mcpServer, server.WithBaseURL(config.SseCfg.SseUrl), server.WithSSEContextFunc(func(ctx context.Context, r *http.Request) context.Context {
+			if len(config.ApiCfg.SseHeaders) == 0 {
+				return ctx
+			}
+			keys := strings.Split(config.ApiCfg.SseHeaders, ",")
+			sseHeaders := map[string]string{}
+			for _, key := range keys {
+				sseHeaders[key] = r.Header.Get(key)
+			}
+			return context.WithValue(ctx, sseHeadersKey, sseHeaders)
+		}))
 		log.Printf("Starting SSE server on %s, endpoint: %s", config.SseCfg.SseAddr, sseServer.CompleteSseEndpoint())
 		if err := sseServer.Start(config.SseCfg.SseAddr); err != nil {
 			log.Fatalf("Server error: %v", err)
@@ -258,7 +270,9 @@ func LoadSwaggerServer(mcpServer *server.MCPServer, swaggerSpec models.SwaggerSp
 			fmt.Printf("Add Tool: %s\n", toolName)
 			mcpServer.AddTool(
 				mcp.NewTool(toolName, toolOption...),
-				CreateMCPToolHandler(reqPathParam, reqQueryParam, reqURL, reqBody, reqMethod, reqHeader, apiCfg.Security, apiCfg.BasicAuth, apiCfg.ApiKeyAuth, apiCfg.BearerAuth),
+				CreateMCPToolHandler(
+					reqPathParam, reqQueryParam, reqURL, reqBody, reqMethod, reqHeader, apiCfg,
+				),
 			)
 		}
 	}
@@ -333,10 +347,7 @@ func CreateMCPToolHandler(
 	reqBody map[string]string,
 	reqMethod string,
 	reqHeader []string,
-	security string,
-	basicAuth string,
-	apiKeyAuth string,
-	bearerAuth string,
+	apiCfg models.ApiConfig,
 ) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		currentReqURL := reqURL
@@ -436,8 +447,33 @@ func CreateMCPToolHandler(
 			req.Header.Add(headerName, headerValue)
 		}
 		req.Header.Set("Content-Type", "application/json")
+
 		// request security
-		setRequestSecurity(req, security, basicAuth, apiKeyAuth, bearerAuth)
+		setRequestSecurity(req, apiCfg.Security, apiCfg.BasicAuth, apiCfg.ApiKeyAuth, apiCfg.BearerAuth)
+
+		// set custom headers from ApiConfig.Headers (format: name1=value1,name2=value2)
+		if apiCfg.Headers != "" {
+			for _, pair := range strings.Split(apiCfg.Headers, ",") {
+				if pair = strings.TrimSpace(pair); pair == "" {
+					continue
+				}
+				if kv := strings.SplitN(pair, "=", 2); len(kv) == 2 {
+					if key := strings.TrimSpace(kv[0]); key != "" {
+						req.Header.Add(key, strings.TrimSpace(kv[1]))
+					}
+				}
+			}
+		}
+
+		// headers from sse
+		sseHeadersValue := ctx.Value(sseHeadersKey)
+		if sseHeadersValue != nil {
+			if sseHeaders, ok := sseHeadersValue.(map[string]string); ok {
+				for k, v := range sseHeaders {
+					req.Header.Set(k, v)
+				}
+			}
+		}
 
 		client := &http.Client{}
 		resp, err := client.Do(req)

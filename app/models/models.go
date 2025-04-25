@@ -81,6 +81,8 @@ type ApiConfig struct {
 	BasicAuth      string `json:"basicAuth"`      // Basic auth credentials
 	ApiKeyAuth     string `json:"apiKeyAuth"`     // API key authentication information
 	BearerAuth     string `json:"bearerAuth"`     // Bearer token
+	SseHeaders     string `json:"sseHeaders"`     // Read headers from sse request, and pass to API request (format: name1,name2)
+	Headers        string `json:"headers"`        // Additional headers to include in requests (format: name1=value1,name2=value2)
 }
 
 // Config stores all command line parameters
