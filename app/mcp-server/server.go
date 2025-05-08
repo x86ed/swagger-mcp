@@ -271,7 +271,7 @@ func LoadSwaggerServer(mcpServer *server.MCPServer, swaggerSpec models.SwaggerSp
 				details.Summary, details.Description)))
 
 			toolName := fmt.Sprintf("%s_%s", method, strings.ReplaceAll(strings.ReplaceAll(path, "}", ""), "{", ""))
-			fmt.Printf("Add Tool: %s\n", toolName)
+
 			mcpServer.AddTool(
 				mcp.NewTool(toolName, toolOption...),
 				CreateMCPToolHandler(
