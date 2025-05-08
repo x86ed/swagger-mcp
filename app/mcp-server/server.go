@@ -113,7 +113,11 @@ func CreateServer(swaggerSpec models.SwaggerSpec, config models.Config) {
 			}
 			return context.WithValue(ctx, sseHeadersKey, sseHeaders)
 		}))
-		log.Printf("Starting SSE server on %s, endpoint: %s", config.SseCfg.SseAddr, sseServer.CompleteSseEndpoint())
+		endpoint, err := sseServer.CompleteSseEndpoint()
+		if err != nil {
+			log.Fatalf("Error creating SSE endpoint: %v", err)
+		}
+		log.Printf("Starting SSE server on %s, endpoint: %s", config.SseCfg.SseAddr, endpoint)
 		if err := sseServer.Start(config.SseCfg.SseAddr); err != nil {
 			log.Fatalf("Server error: %v", err)
 		}
