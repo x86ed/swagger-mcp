@@ -17,8 +17,16 @@ type SwaggerSpec struct {
 	Components *Components `json:"components,omitempty"`
 
 	// Common fields
+	Info        *SwaggerInfo                   `json:"info,omitempty"`
 	Paths       map[string]map[string]Endpoint `json:"paths"`
 	Definitions map[string]Definition          `json:"definitions,omitempty"` // Swagger 2.0
+}
+
+// SwaggerInfo holds metadata about the API, including version.
+type SwaggerInfo struct {
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	Version     string `json:"version,omitempty"`
 }
 
 type Components struct {

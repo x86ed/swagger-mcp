@@ -58,7 +58,8 @@ func getSseUrlAddr(sseUrl, sseAddr string) (string, string) {
 	return "", ""
 }
 
-func main() {
+// runMain is the testable entry point for main logic. Returns error on failure.
+func runMain() error {
 	var finalSseUrl, finalSseAddr string
 	specUrl := flag.String("specUrl", "", "URL of the Swagger JSON specification")
 	sseMode := flag.Bool("sse", false, "Run in SSE mode instead of stdio mode")
@@ -80,27 +81,27 @@ func main() {
 
 	// Validate spec
 	if *specUrl == "" {
-		log.Fatal("Please provide the Swagger JSON URL or file path using the --specUrl flag")
+		return fmt.Errorf("Please provide the Swagger JSON URL or file path using the --specUrl flag")
 	}
 
 	if strings.HasPrefix(*specUrl, "http://") || strings.HasPrefix(*specUrl, "https://") {
 		_, err := url.ParseRequestURI(*specUrl)
 		if err != nil {
-			log.Fatalf("Invalid spec URL: %v", err)
+			return fmt.Errorf("Invalid spec URL: %v", err)
 		}
 	} else if strings.HasPrefix(*specUrl, "file://") {
 		filePath := strings.TrimPrefix(*specUrl, "file://")
 		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			log.Fatalf("Spec file does not exist: %v", err)
+			return fmt.Errorf("Spec file does not exist: %v", err)
 		}
 	} else {
-		log.Fatal("Invalid specUrl format. Must be a valid HTTP URL or file:// path")
+		return fmt.Errorf("Invalid specUrl format. Must be a valid HTTP URL or file:// path")
 	}
 
 	// Validate baseUrl
 	if *baseUrl != "" {
 		if !strings.HasPrefix(*baseUrl, "http://") && !strings.HasPrefix(*baseUrl, "https://") {
-			log.Fatal("baseUrl must start with http:// or https://")
+			return fmt.Errorf("baseUrl must start with http:// or https://")
 		}
 	}
 
@@ -109,7 +110,7 @@ func main() {
 	}
 	swaggerSpec, err := swagger.LoadSwagger(*specUrl)
 	if err != nil {
-		log.Fatalf("Failed to load Swagger spec: %v", err)
+		return fmt.Errorf("Failed to load Swagger spec: %v", err)
 	}
 	swagger.ExtractSwagger(swaggerSpec)
 
@@ -138,4 +139,11 @@ func main() {
 	fmt.Printf("Starting server with specUrl: %s, SSE mode: %v, SSE URL: %s, SSE Addr: %s, Base URL: %s, Include Paths: %s, Exclude Paths: %s, Include Methods: %s, Exclude Methods: %s, Security: %s, BasicAuth: %s, ApiKeyAuth: %s, BearerAuth: %s, Headers: %s, SSE Headers: %s\n",
 		config.SpecUrl, config.SseCfg.SseMode, config.SseCfg.SseUrl, config.SseCfg.SseAddr, config.ApiCfg.BaseUrl, config.ApiCfg.IncludePaths, config.ApiCfg.ExcludePaths, config.ApiCfg.IncludeMethods, config.ApiCfg.ExcludeMethods, config.ApiCfg.Security, config.ApiCfg.BasicAuth, config.ApiCfg.ApiKeyAuth, config.ApiCfg.BearerAuth, config.ApiCfg.Headers, config.ApiCfg.SseHeaders)
 	mcpserver.CreateServer(swaggerSpec, config)
+	return nil
+}
+
+func main() {
+	if err := runMain(); err != nil {
+		log.Fatal(err)
+	}
 }
